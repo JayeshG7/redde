@@ -716,6 +716,11 @@ class NewestCardsTests(unittest.TestCase):
         for field in ("ingredients", "legs", "symbol", "rate"):
             self.assertNotIn(field, props, "a card's fields are in its note, not in every prompt")
 
+    def test_show_shape_requests_a_namespaced_stable_identity(self):
+        self.assertIn("'stable_id'", cards.SHAPES["show"])
+        self.assertIn("provider-namespaced", cards.SHAPES["show"])
+        self.assertIn("'stable_id'", self.note("What should I watch tonight?"))
+
     def test_they_are_checked_and_said_back(self):
         shown, problems = cards.check({"cards": [
             {"type": "recipe", "title": "Tomato Spaghetti", "servings": 4, "ingredients": ["12 oz spaghetti", {"name": "basil", "amount": 1, "unit": "cup"}],

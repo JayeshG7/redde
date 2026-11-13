@@ -106,6 +106,25 @@ struct AnswerCardTests {
         #expect(ChecklistCard.ticked(in: CardAnswers.shared.said[other.key] ?? "") == [0])
     }
 
+    @Test func aWatchedShowUsesTheAnswerCardTransport() async throws {
+        let settings = Settings(defaults: UserDefaults(suiteName: "watched-\(UUID().uuidString)")!)
+        settings.transport = .hermesServe
+        let store = ConversationStore(directory: FileManager.default.temporaryDirectory.appending(path: "watched-\(UUID().uuidString)"))
+        let transport = BotsTests.RecordingTransport()
+        let conversation = Conversation(settings: settings, store: store, transportOverride: transport)
+        conversation.reset()
+        guard case let .show(show) = cards(#"{"cards":[{"type":"show","title":"Paper Moons","year":2019,"format":"movie","stable_id":"tmdb:movie:7719"}]}"#).first,
+              let item = show.items.first, let action = ShowCard.watched(item) else { Issue.record("watched action"); return }
+
+        conversation.answerCard(action.card, shown: action.shown, said: action.said)
+        for _ in 0 ..< 200 where transport.requests.isEmpty || conversation.isStreaming { try await Task.sleep(for: .milliseconds(10)) }
+        let sent = try #require(transport.requests.last)
+        #expect(sent.userText.hasPrefix("I’ve watched “Paper Moons” (2019).\n\n[Redde card \(action.card.key): "))
+        #expect(CardNote.find(in: sent.userText)?.said == action.said)
+        #expect(conversation.messages.first { $0.role == .user }?.text == "I’ve watched “Paper Moons” (2019).", "the JSON note stays hidden")
+        #expect(CardAnswers.shared.said[action.card.key] == action.said)
+    }
+
     /// UAT 2.3.1 (2026-10-31): "Tea" showed as picked once "Green Tea" was, read as a part of the note.
     @Test func aPickIsReadWholeFromItsNote() {
         let said = #"from "Drinks" the user picked: "Green Tea", "Black""#

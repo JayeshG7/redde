@@ -283,6 +283,8 @@ nonisolated extension ReplyCard {
         var title: String?
         var items: [Title]
         var note: String?
+        /// Set only on a synthetic answer card, to keep one title's action separate from its card.
+        var answerNamespace: String?
 
         /// The one shown first and larger: the agent's pick, else the first.
         var lead: Int { items.firstIndex(where: \.pick) ?? 0 }
@@ -294,6 +296,8 @@ nonisolated extension ReplyCard {
             /// A series' last year: with `year`, "2019–2023".
             var endYear: Int?
             var format: Format?
+            /// A provider-namespaced identity (for example `tmdb:tv:95396`), when the agent found one.
+            var stableID: String?
             /// Its poster, https only; shown only with Link previews on.
             var poster: String?
             var ratings: [Rating] = []
@@ -723,6 +727,7 @@ nonisolated extension ReplyCards {
         title.format = ["movie", "film"].contains(where: format.contains) ? .movie
             : ["series", "tv", "show", "season"].contains(where: format.contains) ? .series
             : title.seasons != nil ? .series : title.runtime != nil ? .movie : nil
+        title.stableID = stableID(value["stable_id"] ?? value["stableId"])
         title.poster = https(value["poster"] ?? value["image"] ?? value["picture"])
         title.ratings = ratings(value)
         title.genres = names(value["genres"] ?? value["genre"]).prefix(4).map { String($0.prefix(24)) }
@@ -734,6 +739,20 @@ nonisolated extension ReplyCards {
         title.cast = names(value["cast"] ?? value["starring"]).prefix(4).map { String($0.prefix(40)) }
         title.pick = (value["pick"] ?? value["best"] ?? value["recommended"])?.bool == true
         return title
+    }
+
+    /// A bounded identifier with a source namespace: `imdb:tt2861424`, `tmdb:tv:95396`.
+    private static func stableID(_ value: JSONValue?) -> String? {
+        guard let id = text(value), id.utf8.count <= 160,
+              let colon = id.firstIndex(of: ":"), colon != id.startIndex,
+              id.index(after: colon) != id.endIndex else { return nil }
+        let namespace = id[..<colon], identity = id[id.index(after: colon)...]
+        let namespaceMarks = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
+        let identityMarks = namespaceMarks.union(CharacterSet(charactersIn: ":/"))
+        guard namespace.unicodeScalars.allSatisfy(namespaceMarks.contains), identity.unicodeScalars.allSatisfy(identityMarks.contains),
+              namespace.unicodeScalars.contains(where: CharacterSet.alphanumerics.contains),
+              identity.unicodeScalars.contains(where: CharacterSet.alphanumerics.contains) else { return nil }
+        return id
     }
 
     /// Names as a list, or a line split at its commas ("Netflix, Max"), or each as {name}.

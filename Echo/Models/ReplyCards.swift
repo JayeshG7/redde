@@ -447,7 +447,19 @@ nonisolated enum ReplyCard: Codable, Equatable, Sendable {
         case let .flight(t):
             said = "flight|" + t.legs.map { [$0.number ?? "", $0.from.code ?? $0.from.city ?? "", $0.departs.map { $0.date.timeIntervalSince1970.rounded(.towardZero).wholeFigures } ?? ""].joined(separator: "|") }
                 .joined(separator: "|")
-        case let .show(s): said = "show|" + (s.title ?? "") + "|" + s.items.map { $0.name + ($0.year.map { " \($0)" } ?? "") }.joined(separator: "|")
+        case let .show(s):
+            let titles = s.items.map { $0.name + ($0.year.map { " \($0)" } ?? "") }
+            let identities = zip(s.items, titles).map { item, title in
+                item.stableID ?? [title, item.endYear.map(String.init) ?? "", item.format?.rawValue ?? ""].joined(separator: "|")
+            }
+            if s.items.contains(where: { $0.stableID != nil }) {
+                said = "show|" + (s.answerNamespace.map { $0 + "|" } ?? "") + "ids|" + identities.joined(separator: "|")
+            } else if let namespace = s.answerNamespace {
+                said = "show|" + namespace + "|" + identities.joined(separator: "|")
+            } else {
+                // Keep the pre-stable-ID input byte-for-byte so existing answers still find their card.
+                said = "show|" + (s.title ?? "") + "|" + titles.joined(separator: "|")
+            }
         case let .stock(q): said = "stock|" + q.items.map(\.symbol).joined(separator: "|") + "|" + (q.items.first?.asOf.map { $0.timeIntervalSince1970.rounded(.towardZero).wholeFigures } ?? "")
         default: return ""
         }
