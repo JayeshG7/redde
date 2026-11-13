@@ -1076,16 +1076,16 @@ extension Conversation {
         case "show":
             let picks = #"""
             {"cards": [{"type": "show", "title": "Something like what you liked", "items": [
-              {"title": "The Quiet Floor", "year": "2022", "format": "series", "seasons": 2, "pick": true,
+              {"title": "The Quiet Floor", "year": "2022", "format": "series", "stable_id": "demo:show:the-quiet-floor", "seasons": 2, "pick": true,
                "poster": "https://images.example.com/posters/the-quiet-floor.jpg", "genres": ["Drama", "Mystery", "Sci-Fi"],
                "ratings": [{"source": "Critics", "value": "96%"}, {"source": "Audience", "value": "8.6/10"}],
                "overview": "Office workers whose memories are split between work and home start to wonder what the other half of them is doing.",
                "creator": "Jo Marlow", "cast": ["Ana Reyes", "Tom Okafor"], "watch": ["StreamBox", "Northwind+"],
                "trailer": "https://www.example.com/the-quiet-floor/trailer", "url": "https://www.example.com/the-quiet-floor"},
-              {"title": "Paper Moons", "year": 2019, "format": "film", "runtime": 118, "poster": "https://images.example.com/posters/paper-moons.jpg",
+              {"title": "Paper Moons", "year": 2019, "format": "film", "stable_id": "demo:movie:paper-moons", "runtime": 118, "poster": "https://images.example.com/posters/paper-moons.jpg",
                "genres": ["Drama"], "ratings": {"Critics": "91%"}, "overview": "A night-shift radio host takes one call that changes three lives.",
                "director": "Lea Brandt", "watch": ["Harbor TV"], "url": "https://www.example.com/paper-moons"},
-              {"title": "Northbound", "year": "2021–2023", "format": "series", "seasons": 3, "poster": "https://images.example.com/posters/northbound.jpg",
+              {"title": "Northbound", "year": "2021–2023", "format": "series", "stable_id": "demo:show:northbound", "seasons": 3, "poster": "https://images.example.com/posters/northbound.jpg",
                "genres": "Thriller, Drama", "rating": "8.1/10", "overview": "A ferry crew is stranded between two islands that don't appear on any map.",
                "watch": "StreamBox"}]}]}
             """#

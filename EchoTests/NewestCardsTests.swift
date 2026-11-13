@@ -191,6 +191,87 @@ struct NewestCardsTests {
         #expect(ShowCard.ask(.watch, s).said.contains("never guess a service"))
     }
 
+    @Test func aShowTitleKeepsOnlyABoundedNamespacedStableID() throws {
+        guard case let .show(valid) = try card(#"{"type":"show","title":"The Quiet Floor","year":2022,"stable_id":"tmdb:tv:95396"}"#)
+        else { Issue.record("valid show"); return }
+        #expect(valid.items[0].stableID == "tmdb:tv:95396")
+
+        guard case let .show(plain) = try card(#"{"type":"show","title":"The Quiet Floor","year":2022,"stable_id":"95396"}"#)
+        else { Issue.record("plain show"); return }
+        #expect(plain.items[0].stableID == nil, "an identifier needs its source namespace")
+
+        guard case let .show(punctuation) = try card(#"{"type":"show","title":"The Quiet Floor","year":2022,"stable_id":"---:/"}"#)
+        else { Issue.record("punctuation show"); return }
+        #expect(punctuation.items[0].stableID == nil, "both namespace and identity need an alphanumeric character")
+
+        let oversized = "tmdb:tv:" + String(repeating: "9", count: 153)
+        let json = #"{"type":"show","title":"The Quiet Floor","year":2022,"stable_id":"\#(oversized)"}"#
+        guard case let .show(long) = try card(json) else { Issue.record("long show"); return }
+        #expect(long.items[0].stableID == nil, "identifiers are at most 160 characters")
+    }
+
+    @Test func aWatchedShowSendsItsExactIdentityAndUsesAPerTitleCard() throws {
+        guard case let .show(shows) = try card(#"""
+        {"type":"show","items":[
+          {"title":"Northbound","year":"2021–2023","format":"series","stable_id":"tmdb:tv:99123"},
+          {"title":"Paper Moons","year":2019,"format":"movie","stable_id":"tmdb:movie:7719"},
+          {"title":"Unknown Range","year":"2018–2020","stable_id":"demo:show:unknown-range"}]}
+        """#) else { Issue.record("shows"); return }
+
+        let action = try #require(ShowCard.watched(shows.items[0]))
+        #expect(action.shown == "I’ve watched “Northbound” (2021–2023).")
+        #expect(action.said.hasPrefix("Log the exact title the user marked as watched in Argus. JSON identity: "))
+        let written = String(action.said.dropFirst(action.said.firstIndex(of: "{").map { action.said.distance(from: action.said.startIndex, to: $0) } ?? action.said.count))
+        let identity = try #require(try JSONSerialization.jsonObject(with: Data(written.utf8)) as? [String: Any])
+        #expect(identity["action"] as? String == "watched")
+        #expect(identity["title"] as? String == "Northbound")
+        #expect(identity["year"] as? Int == 2021 && identity["end_year"] as? Int == 2023)
+        #expect(identity["format"] as? String == "series" && identity["stable_id"] as? String == "tmdb:tv:99123")
+
+        guard case let .show(answerCard) = action.card else { Issue.record("per-title show card"); return }
+        #expect(answerCard.items == [shows.items[0]], "the answer state belongs only to the tapped title")
+        #expect(action.card.key != ReplyCard.show(.init(items: [shows.items[0]])).key,
+                "watched state must not collide with the containing card's follow-up state")
+        #expect(action.card.key != ShowCard.watched(shows.items[1])?.card.key)
+        let inferredRange = try #require(ShowCard.watched(shows.items[2]))
+        #expect(inferredRange.shown == "I’ve watched “Unknown Range” (2018–2020).")
+        #expect(inferredRange.said.contains(#""end_year":2020"#), "a parsed range stays exact even without an explicit format")
+        let movie = ReplyCard.Shows.Title(name: "Shared Name", year: 2020, format: .movie)
+        let series = ReplyCard.Shows.Title(name: "Shared Name", year: 2020, format: .series)
+        #expect(ShowCard.watched(movie)?.card.key != ShowCard.watched(series)?.card.key,
+                "format disambiguates watched state when no provider ID was found")
+        #expect(ShowCard.watched(.init(name: "No Year")) == nil, "the button needs a year")
+    }
+
+    @Test func aShowCardKeyPrefersStableIDsWithoutChangingLegacyKeys() throws {
+        let legacy = try card(#"{"type":"show","title":"Paper Moons","year":2019}"#)
+        #expect(legacy.key == "tf4gld4fjezg", "cards without IDs keep their existing answer key")
+
+        let original = try card(#"{"type":"show","title":"The Quiet Floor","year":2022,"stable_id":"tmdb:tv:95396"}"#)
+        let renamed = try card(#"{"type":"show","title":"Quiet Floor","year":2023,"stable_id":"tmdb:tv:95396"}"#)
+        #expect(original.key == renamed.key, "a provider identity survives corrected display metadata")
+    }
+
+    @Test func theWatchedButtonOnlyAppearsWhenItCanAnswerADatedTitle() {
+        let dated = ReplyCard.Shows.Title(name: "Paper Moons", year: 2019)
+        let undated = ReplyCard.Shows.Title(name: "Paper Moons")
+        #expect(ShowCard.watchedState(dated, answered: false, canAnswer: true, pinned: false, busy: false) == .enabled)
+        #expect(ShowCard.watchedState(dated, answered: false, canAnswer: true, pinned: false, busy: true) == .disabled)
+        #expect(ShowCard.watchedState(dated, answered: false, canAnswer: false, pinned: false, busy: false) == .hidden)
+        #expect(ShowCard.watchedState(dated, answered: false, canAnswer: true, pinned: true, busy: false) == .hidden)
+        #expect(ShowCard.watchedState(undated, answered: false, canAnswer: true, pinned: false, busy: false) == .hidden)
+        #expect(ShowCard.watchedState(dated, answered: true, canAnswer: false, pinned: true, busy: true) == .answered)
+    }
+
+    @Test func anUndatedShowKeepsItsMoreInfoLinkWhenWatchedIsHidden() {
+        let undated = ReplyCard.Shows.Title(name: "Paper Moons")
+        #expect(ShowCard.showsMoreInfo(undated, watched: .hidden, hasURL: true))
+        #expect(!ShowCard.showsMoreInfo(undated, watched: .hidden, hasURL: false))
+        let dated = ReplyCard.Shows.Title(name: "Paper Moons", year: 2019)
+        #expect(!ShowCard.showsMoreInfo(dated, watched: .enabled, hasURL: true),
+                "the watched action replaces More Info for dated recommendations")
+    }
+
     // MARK: Conversions
 
     @Test func unitsAreWorkedOutOnThePhone() throws {

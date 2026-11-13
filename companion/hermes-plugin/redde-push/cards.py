@@ -379,9 +379,10 @@ SHAPES = {
                "it differs}), status (scheduled, on time, delayed, boarding, departed, landed, cancelled or diverted), seat, "
                "duration (e.g. 7h 45m)}; 'title'; 'confirmation'; 'note'"),
     "show": ("'title' (of a list); 'items' (1 to 6, your pick first), each {title, year (e.g. 2022, or 2019-2023), format "
-             "(movie or series), seasons or runtime (minutes), genres, ratings ([{source, value}], e.g. IMDb 8.7/10, as found), "
-             "overview (two lines), director or creator, cast (a few), watch (the services it is on where the person is), "
-             "poster (https), trailer and url (pages, as found), pick (true for one)}; 'note'"),
+             "(movie or series), 'stable_id' (provider-namespaced, e.g. imdb:tt2861424 or tmdb:tv:95396, as found), seasons or "
+             "runtime (minutes), genres, ratings ([{source, value}], e.g. IMDb 8.7/10, as found), overview (two lines), director "
+             "or creator, cast (a few), watch (the services it is on where the person is), poster (https), trailer and url (pages, "
+             "as found), pick (true for one)}; 'note'"),
     "conversion": ("'amount'; 'from' and 'to' (units as written, e.g. mi, km, °F, cups, or ISO currency codes); for a currency "
                    "'rate' (one 'from' in 'to', as found) with 'as_of' (ISO, when) and 'source'; 'result' only for units the app "
                    "may not know; 'title'; 'note'. The app works units out itself"),

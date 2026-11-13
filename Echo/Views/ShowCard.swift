@@ -11,6 +11,9 @@ struct ShowCard: View {
     let whole: ReplyCard
     private let shown: [Shown]
     @State private var open: Set<Int> = []
+    @State private var answers = CardAnswers.shared
+    @Environment(\.answerCard) private var answerer
+    @Environment(\.pinnedCard) private var pinned
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var appScheme
     /// The card's own appearance, not the app's (Card Appearance can differ): `ColorScheme.onCard`.
@@ -86,16 +89,20 @@ struct ShowCard: View {
             if let overview = item.overview { Text(overview).chatFont(.subheadline).fixedSize(horizontal: false, vertical: true) }
             if let people = s.people { Text(verbatim: people).chatFont(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             if !item.watch.isEmpty { watch(item.watch) }
-            if s.trailer != nil || s.url != nil {
+            let watched = Self.watchedState(item, answered: Self.watched(item).map { answers.said[$0.card.key] != nil } ?? false,
+                                            canAnswer: answerer != nil, pinned: pinned, busy: answerer?.busy ?? false)
+            let moreInfo = Self.showsMoreInfo(item, watched: watched, hasURL: s.url != nil)
+            if s.trailer != nil || moreInfo || watched != .hidden {
                 HStack(spacing: 10) {
                     if let trailer = s.trailer {
                         Button { openURL(trailer) } label: { LinkCapsule(title: String(localized: "Trailer", comment: "A show card's button: opens its trailer in the browser"), filled: !inRow) }
                             .accessibilityHint(Text("Opens the trailer in your browser", comment: "VoiceOver hint: a show card's Trailer"))
                     }
-                    if let url = s.url {
+                    if moreInfo, let url = s.url {
                         Button { openURL(url) } label: { LinkCapsule(title: String(localized: "More Info", comment: "A show card's button: opens its page in the browser"), filled: false) }
                             .accessibilityHint(Text("Opens its page in your browser", comment: "VoiceOver hint: a show card's More Info"))
                     }
+                    watchedButton(item, state: watched)
                 }
                 .buttonStyle(.plain)
             }
@@ -205,6 +212,79 @@ struct ShowCard: View {
             return (String(localized: "Where can I watch \(lead.name)?", comment: "The message a show card's Where can I watch it? sends, with the title's name"),
                     start + "look up where \(named) is streaming, to rent or to buy now, in the person's country, with your tools, and show it "
                         + "as a 'show' card with 'watch'; never guess a service. Then answer in a line")
+        }
+    }
+
+    /// The per-title answer card and message for “I’ve watched this”. A year is required so Argus
+    /// never logs an ambiguous remake or adaptation.
+    static func watched(_ item: ReplyCard.Shows.Title) -> (card: ReplyCard, shown: String, said: String)? {
+        guard let year = item.year else { return nil }
+        let endYear = item.endYear
+        let years = endYear.map { "\(year)–\($0)" } ?? "\(year)"
+        let identity = WatchedIdentity(title: item.name, year: year, endYear: endYear,
+                                       format: item.format?.rawValue, stableID: item.stableID)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(identity), let json = String(data: data, encoding: .utf8) else { return nil }
+        let answerCard = ReplyCard.show(.init(items: [item], answerNamespace: "watched"))
+        return (answerCard,
+                String(localized: "I’ve watched “\(item.name)” (\(years)).", comment: "The message sent when a person marks a show-card title watched"),
+                "Log the exact title the user marked as watched in Argus. JSON identity: " + json)
+    }
+
+    enum WatchedState { case hidden, enabled, disabled, answered }
+
+    static func watchedState(_ item: ReplyCard.Shows.Title, answered: Bool, canAnswer: Bool, pinned: Bool, busy: Bool) -> WatchedState {
+        guard item.year != nil else { return .hidden }
+        if answered { return .answered }
+        guard canAnswer, !pinned else { return .hidden }
+        return busy ? .disabled : .enabled
+    }
+
+    static func showsMoreInfo(_ item: ReplyCard.Shows.Title, watched: WatchedState, hasURL: Bool) -> Bool {
+        hasURL && item.year == nil && watched == .hidden
+    }
+
+    @ViewBuilder
+    private func watchedButton(_ item: ReplyCard.Shows.Title, state: WatchedState) -> some View {
+        switch state {
+        case .hidden:
+            EmptyView()
+        case .answered:
+            AnsweredLine(text: String(localized: "Watched", comment: "On a show card after the person marked this title watched"))
+        case .enabled, .disabled:
+            if let action = Self.watched(item), let answerer {
+                Button { answerer.answer(action.card, action.shown, action.said) } label: {
+                    TintedCapsule(title: String(localized: "I’ve watched this", comment: "A show card's button: marks this exact title watched"))
+                }
+                .disabled(state == .disabled)
+                .accessibilityHint(Text("Tells your agent you watched this title", comment: "VoiceOver hint: a show card's watched button"))
+            }
+        }
+    }
+
+    private struct WatchedIdentity: Encodable {
+        let action = "watched"
+        var title: String
+        var year: Int
+        var endYear: Int?
+        var format: String?
+        var stableID: String?
+
+        enum CodingKeys: String, CodingKey {
+            case action, title, year, format
+            case endYear = "end_year"
+            case stableID = "stable_id"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            try values.encode(action, forKey: .action)
+            try values.encode(title, forKey: .title)
+            try values.encode(year, forKey: .year)
+            if let endYear { try values.encode(endYear, forKey: .endYear) } else { try values.encodeNil(forKey: .endYear) }
+            if let format { try values.encode(format, forKey: .format) } else { try values.encodeNil(forKey: .format) }
+            if let stableID { try values.encode(stableID, forKey: .stableID) } else { try values.encodeNil(forKey: .stableID) }
         }
     }
 

@@ -192421,6 +192421,12 @@
         }
       }
     },
+    "I’ve watched “%@” (%@)." : {
+      "comment" : "The message sent when a person marks a show-card title watched"
+    },
+    "I’ve watched this" : {
+      "comment" : "A show card's button: marks this exact title watched"
+    },
     "iCloud" : {
       "localizations" : {
         "da" : {
@@ -386808,6 +386814,9 @@
         }
       }
     },
+    "Tells your agent you watched this title" : {
+      "comment" : "VoiceOver hint: a show card's watched button"
+    },
     "Terminal" : {
       "comment" : "Name of a color theme in Settings → Appearance",
       "localizations" : {
@@ -446267,6 +446276,9 @@
           }
         }
       }
+    },
+    "Watched" : {
+      "comment" : "On a show card after the person marked this title watched"
     },
     "Watches" : {
       "localizations" : {
